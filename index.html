@@ -3,50 +3,44 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Uber Tracker - Safe Save</title>
+    <title>Super Sensitive Tracker</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
     <style>
         :root { --uber-blue: #276EF1; --dark: #000; --green: #28a745; --red: #dc3545; }
-        body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; font-family: 'Arial', sans-serif; background: #e5e5e5; }
+        body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; font-family: 'Arial', sans-serif; background: #f4f4f4; }
 
-        /* Dashboard */
         .dashboard {
-            position: absolute;
-            top: 15px; left: 15px; right: 15px;
-            background: rgba(255, 255, 255, 0.95);
-            padding: 12px; border-radius: 12px;
+            position: absolute; top: 15px; left: 15px; right: 15px;
+            background: #fff; padding: 12px; border-radius: 12px;
             z-index: 1000; display: flex; justify-content: space-around;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-            backdrop-filter: blur(5px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
         }
         .stat-item { text-align: center; flex: 1; }
         .stat-val { font-size: 24px; font-weight: bold; color: var(--dark); }
-        .stat-unit { font-size: 10px; color: #666; text-transform: uppercase; font-weight: bold; }
+        .stat-unit { font-size: 10px; color: #666; font-weight: bold; }
 
-        /* Status & Reset Data */
         .status-card {
-            position: absolute;
-            top: 85px; left: 50%; transform: translateX(-50%);
+            position: absolute; top: 85px; left: 50%; transform: translateX(-50%);
             background: #fff; padding: 5px 15px; border-radius: 20px;
             z-index: 1000; display: flex; align-items: center; gap: 8px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1); font-size: 12px; font-weight: bold;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15); font-size: 12px; font-weight: bold;
         }
+        
+        #map { width: 100%; height: 100vh; z-index: 1; }
+        .car-marker-icon { color: var(--dark); filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4)); }
         
         .clear-btn {
             position: absolute; bottom: 30px; left: 20px;
-            background: #fff; border: none; padding: 10px; border-radius: 50%;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 1000; color: var(--red);
+            background: #fff; border: none; padding: 12px; border-radius: 50%;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2); z-index: 1000; color: var(--red);
         }
-
-        #map { width: 100%; height: 100vh; z-index: 1; }
-        .car-marker-icon { color: var(--dark); filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4)); }
         .recenter-btn {
             position: absolute; bottom: 30px; right: 20px;
             width: 50px; height: 50px; background: #fff; border-radius: 50%;
             display: flex; align-items: center; justify-content: center;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 1000;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2); z-index: 1000;
         }
     </style>
 </head>
@@ -58,25 +52,19 @@
             <div class="stat-unit">km/h</div>
         </div>
         <div class="stat-item">
-            <div id="dist-val" class="stat-val">0.00</div>
-            <div class="stat-unit">total km</div>
+            <div id="dist-val" class="stat-val">0.000</div>
+            <div class="stat-unit">km total</div>
         </div>
     </div>
 
-    <div id="status-container" class="status-card" style="color: var(--red);">
-        <span id="status-dot" class="dot" style="height:8px; width:8px; border-radius:50%; background:var(--red);"></span>
+    <div id="status-container" class="status-card">
+        <span id="status-dot" style="height:8px; width:8px; border-radius:50%; background:var(--red);"></span>
         <span id="status-text">Stopped</span>
     </div>
 
-    <button class="clear-btn" onclick="clearJourney()" title="Reset Journey">
-        <i class="fas fa-trash-alt"></i>
-    </button>
-
+    <button class="clear-btn" onclick="clearJourney()"><i class="fas fa-trash-alt"></i></button>
     <div id="map"></div>
-
-    <div class="recenter-btn" onclick="recenterMap()">
-        <i class="fas fa-location-arrow" style="font-size: 20px; color: var(--uber-blue);"></i>
-    </div>
+    <div class="recenter-btn" onclick="recenterMap()"><i class="fas fa-location-arrow" style="font-size: 20px; color: var(--uber-blue);"></i></div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
@@ -90,28 +78,27 @@
         let pathPoints = JSON.parse(localStorage.getItem('uber_path')) || [];
         let lastLat, lastLon, carMarker, isUserMovingMap = false;
 
-        odometerDisplay.innerText = totalDistance.toFixed(2);
-
-        const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([23.8103, 90.4125], 18);
+        const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([23.8103, 90.4125], 19);
 
         L.tileLayer('http://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
-            maxZoom: 20, subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
+            maxZoom: 21, subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
         }).addTo(map);
 
         const routeLine = L.polyline(pathPoints, { color: '#276EF1', weight: 5, opacity: 0.6 }).addTo(map);
-
         const carIcon = L.divIcon({
             className: 'car-marker-icon',
             html: '<i class="fas fa-car" style="font-size: 28px;"></i>',
             iconSize: [28, 28], iconAnchor: [14, 14]
         });
 
-        map.on('movestart', () => { isUserMovingMap = true; });
+        odometerDisplay.innerText = totalDistance.toFixed(4);
 
         function startTracking() {
             if (navigator.geolocation) {
                 navigator.geolocation.watchPosition(updateStats, null, {
-                    enableHighAccuracy: true, maximumAge: 0, timeout: 5000
+                    enableHighAccuracy: true,
+                    maximumAge: 0,
+                    timeout: 2000
                 });
             }
         }
@@ -119,70 +106,71 @@
         function updateStats(position) {
             const lat = position.coords.latitude;
             const lon = position.coords.longitude;
-            const newPos = [lat, lon];
 
-            // ১. স্পিড ও স্ট্যাটাস
-            let speed = position.coords.speed || 0;
-            let currentSpeed = Math.round(speed * 3.6);
-            speedDisplay.innerText = currentSpeed > 0 ? currentSpeed : 0;
+            let stepDistance = 0;
+            if (lastLat && lastLon) {
+                stepDistance = calculateDistance(lastLat, lastLon, lat, lon);
+                
+                // সেন্সিটিভিটি ০.১ ফুট (প্রায় ০.০০০০৩ কিমি)
+                // এখানে ৩ সেন্টিমিটার বা ০.১ ফুটের বেশি নড়লে মুভিং ধরবে
+                if (stepDistance < 0.00003) {
+                    updateStatus(0);
+                    return; 
+                }
 
-            if (currentSpeed > 1) {
-                statusText.innerText = "Moving";
-                statusDot.style.background = "var(--green)";
-            } else {
-                statusText.innerText = "Stopped";
-                statusDot.style.background = "var(--red)";
+                totalDistance += stepDistance;
+                odometerDisplay.innerText = totalDistance.toFixed(4);
+                localStorage.setItem('uber_dist', totalDistance);
             }
 
-            // ২. মার্কার ও লাইন আপডেট
+            const newPos = [lat, lon];
+            let speed = position.coords.speed || 0;
+            let currentSpeed = speed > 0 ? Math.round(speed * 3.6) : (stepDistance > 0 ? 1 : 0);
+            
+            speedDisplay.innerText = currentSpeed;
+            updateStatus(currentSpeed);
+
             if (!carMarker) {
                 carMarker = L.marker(newPos, { icon: carIcon }).addTo(map);
-                if(pathPoints.length > 0) map.panTo(newPos);
+                map.panTo(newPos);
             } else {
                 carMarker.setLatLng(newPos);
             }
 
             pathPoints.push(newPos);
             routeLine.setLatLngs(pathPoints);
-            
-            // ৩. LocalStorage এ সেভ করা (Path এবং Distance)
             localStorage.setItem('uber_path', JSON.stringify(pathPoints));
 
             if (!isUserMovingMap) map.panTo(newPos);
-
-            if (lastLat && lastLon) {
-                const d = calculateDistance(lastLat, lastLon, lat, lon);
-                if (d > 0.0015) { 
-                    totalDistance += d;
-                    odometerDisplay.innerText = totalDistance.toFixed(2);
-                    localStorage.setItem('uber_dist', totalDistance);
-                }
-            }
             lastLat = lat; lastLon = lon;
         }
 
-        function clearJourney() {
-            if(confirm("পুরো জার্নি কি মুছে ফেলতে চান?")) {
-                localStorage.removeItem('uber_dist');
-                localStorage.removeItem('uber_path');
-                location.reload();
+        function updateStatus(speed) {
+            if (speed > 0) {
+                statusText.innerText = "Moving";
+                statusDot.style.background = "var(--green)";
+            } else {
+                statusText.innerText = "Stopped";
+                statusDot.style.background = "var(--red)";
             }
         }
 
-        function recenterMap() {
-            isUserMovingMap = false;
-            if(carMarker) map.flyTo(carMarker.getLatLng(), 18);
-        }
-
         function calculateDistance(lat1, lon1, lat2, lon2) {
-            const R = 6371;
+            const R = 6371; // KM
             const dLat = (lat2 - lat1) * Math.PI / 180;
             const dLon = (lon2 - lon1) * Math.PI / 180;
             const a = Math.sin(dLat/2)**2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2)**2;
             return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
         }
 
+        function clearJourney() {
+            if(confirm("Clear journey data?")) { localStorage.clear(); location.reload(); }
+        }
+
+        function recenterMap() { isUserMovingMap = false; if(carMarker) map.flyTo(carMarker.getLatLng(), 19); }
+
         window.onload = startTracking;
+        map.on('movestart', () => { isUserMovingMap = true; });
     </script>
 </body>
 </html>
