@@ -3,52 +3,54 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Super Sensitive Tracker</title>
-    <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#276EF1">
+    <title>Path Tracker</title>
+    
+    <link rel="manifest" href="manifest.json">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
     <style>
-        :root { --uber-blue: #276EF1; --dark: #000; --green: #28a745; --red: #dc3545; }
-        body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; font-family: 'Arial', sans-serif; background: #f4f4f4; }
+        :root { --uber-blue: #276EF1; --dark: #000; --green: #2ecc71; --red: #e74c3c; --gold: #f1c40f; }
+        body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; font-family: 'Segoe UI', sans-serif; background: #000; }
 
         .dashboard {
             position: absolute; top: 15px; left: 15px; right: 15px;
-            background: #fff; padding: 12px; border-radius: 12px;
+            background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(10px);
+            padding: 15px; border-radius: 15px; border: 1px solid rgba(255,255,255,0.1);
             z-index: 1000; display: flex; justify-content: space-around;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5); color: white;
         }
         .stat-item { text-align: center; flex: 1; }
-        .stat-val { font-size: 22px; font-weight: bold; color: var(--dark); }
-        .stat-unit { font-size: 10px; color: #666; font-weight: bold; text-transform: uppercase; }
+        .stat-val { font-size: 24px; font-weight: 900; color: var(--gold); }
+        .stat-unit { font-size: 10px; color: #bbb; text-transform: uppercase; letter-spacing: 1px; }
+
+        .layer-toggle {
+            position: absolute; top: 100px; right: 15px;
+            background: #fff; padding: 10px; border-radius: 12px;
+            z-index: 1000; cursor: pointer; display: flex; align-items: center; gap: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2); font-weight: bold; font-size: 12px;
+        }
 
         .status-card {
-            position: absolute; top: 85px; left: 50%; transform: translateX(-50%);
-            background: #fff; padding: 5px 15px; border-radius: 20px;
-            z-index: 1000; display: flex; align-items: center; gap: 8px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.15); font-size: 12px; font-weight: bold;
+            position: absolute; top: 100px; left: 50%; transform: translateX(-50%);
+            background: rgba(0,0,0,0.8); padding: 6px 16px; border-radius: 20px;
+            z-index: 1000; display: flex; align-items: center; gap: 10px;
+            border: 1px solid rgba(255,255,255,0.2); font-size: 12px; font-weight: bold; color: #fff;
         }
 
-        #map { width: 100%; height: 100vh; z-index: 1; }
+        #map { width: 100%; height: 100vh; z-index: 1; background: #0b0e14; }
         
-        .car-marker-icon { 
-            color: var(--dark); 
-            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4));
+        .action-btn {
+            position: absolute; width: 55px; height: 55px; background: #fff; 
+            border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3); z-index: 1000; cursor: pointer; border: none;
         }
+        .clear-btn { bottom: 100px; right: 20px; color: var(--red); }
+        .export-btn { bottom: 170px; right: 20px; color: var(--green); }
+        .recenter-btn { bottom: 30px; right: 20px; color: var(--uber-blue); }
 
-        .clear-btn {
-            position: absolute; bottom: 30px; left: 20px;
-            background: #fff; border: none; padding: 12px; border-radius: 50%;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.2); z-index: 1000; color: var(--red);
-            width: 50px; height: 50px; cursor: pointer;
-        }
-        .recenter-btn {
-            position: absolute; bottom: 30px; right: 20px;
-            width: 50px; height: 50px; background: #fff; border-radius: 50%;
-            display: flex; align-items: center; justify-content: center;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.2); z-index: 1000; cursor: pointer;
-        }
+        .car-marker-icon { color: var(--uber-blue); filter: drop-shadow(0 0 5px #fff); }
     </style>
 </head>
 <body>
@@ -68,86 +70,121 @@
         </div>
     </div>
 
-    <div id="status-container" class="status-card">
-        <span id="status-dot" style="height:8px; width:8px; border-radius:50%; background:var(--red);"></span>
-        <span id="status-text">Stopped</span>
+    <div class="layer-toggle" onclick="toggleMapMode()">
+        <i class="fas fa-layer-group"></i> <span id="mode-text">Satellite</span>
     </div>
 
-    <button class="clear-btn" onclick="clearJourney()"><i class="fas fa-trash-alt"></i></button>
+    <div class="status-card">
+        <span id="status-dot" style="height:10px; width:10px; border-radius:50%; background:var(--red);"></span>
+        <span id="status-text">GPS CONNECTING...</span>
+    </div>
+
+    <button class="action-btn export-btn" onclick="exportHistory()" title="Export CSV"><i class="fas fa-file-export"></i></button>
+    <button class="action-btn clear-btn" onclick="clearJourney()" title="Reset"><i class="fas fa-trash-alt"></i></button>
+    <button class="action-btn recenter-btn" onclick="recenterMap()" title="Recenter"><i class="fas fa-crosshairs"></i></button>
+
     <div id="map"></div>
-    <div class="recenter-btn" onclick="recenterMap()"><i class="fas fa-location-arrow" style="font-size: 20px; color: var(--uber-blue);"></i></div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <script>
+        // --- 1. DB SETUP ---
+        let db;
+        const dbReq = indexedDB.open('VehicleTrackerDB', 1);
+        dbReq.onupgradeneeded = (e) => {
+            db = e.target.result;
+            if (!db.objectStoreNames.contains('logs')) {
+                db.createObjectStore('logs', { keyPath: 'id', autoIncrement: true });
+            }
+        };
+        dbReq.onsuccess = (e) => { db = e.target.result; };
+
+        // --- 2. CONFIG ---
+        const nanaBari = [23.95648, 90.26997];
+        let totalDistance = parseFloat(localStorage.getItem('v_dist')) || 0;
+        let lastLat, lastLon, carMarker, isUserMovingMap = false;
+        let currentMode = 'lite';
+        let pathLine; // For Blue Tracking Line
+
         const speedDisplay = document.getElementById('speed-num');
-        const odometerDisplay = document.getElementById('dist-val');
-        const nanaDistDisplay = document.getElementById('nana-dist');
+        const distDisplay = document.getElementById('dist-val');
+        const nanaDisplay = document.getElementById('nana-dist');
         const statusText = document.getElementById('status-text');
         const statusDot = document.getElementById('status-dot');
+        const modeText = document.getElementById('mode-text');
 
-        const nanaBariLoc = [23.95648, 90.26997]; 
-        
-        let totalDistance = parseFloat(localStorage.getItem('uber_dist')) || 0;
-        let lastLat, lastLon, carMarker, isUserMovingMap = false;
+        distDisplay.innerText = totalDistance.toFixed(3);
 
-        const map = L.map('map', { zoomControl: false, attributionControl: false }).setView(nanaBariLoc, 15);
+        // --- 3. MAP MODES ---
+        const map = L.map('map', { zoomControl: false, attributionControl: false }).setView(nanaBari, 15);
 
-        L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+        const liteLayer = L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
             maxZoom: 21, subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
-        }).addTo(map);
-
-        const flagIcon = L.divIcon({
-            className: 'nana-flag',
-            html: '<i class="fas fa-flag" style="font-size: 30px; color: #dc3545; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));"></i>',
-            iconSize: [30, 30], iconAnchor: [5, 30]
         });
-        L.marker(nanaBariLoc, { icon: flagIcon }).addTo(map).bindPopup("Nana Bari");
+
+        const satelliteLayer = L.tileLayer('https://{s}.google.com/vt/lyrs=s,h&x={x}&y={y}&z={z}', {
+            maxZoom: 20, subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
+        });
+
+        liteLayer.addTo(map);
+
+        // Blue Tracking Line Init
+        pathLine = L.polyline([], { color: '#276EF1', weight: 6, opacity: 0.8 }).addTo(map);
+
+        function toggleMapMode() {
+            if (currentMode === 'lite') {
+                map.removeLayer(liteLayer);
+                satelliteLayer.addTo(map);
+                currentMode = 'satellite';
+                modeText.innerText = "Lite Mode";
+            } else {
+                map.removeLayer(satelliteLayer);
+                liteLayer.addTo(map);
+                currentMode = 'lite';
+                modeText.innerText = "Satellite";
+            }
+        }
 
         const carIcon = L.divIcon({
             className: 'car-marker-icon',
-            html: '<i class="fas fa-car" style="font-size: 28px;"></i>',
+            html: '<i class="fas fa-location-arrow" style="font-size: 28px; transform: rotate(-45deg);"></i>',
             iconSize: [28, 28], iconAnchor: [14, 14]
         });
 
-        odometerDisplay.innerText = totalDistance.toFixed(3);
-
+        // --- 4. TRACKING LOGIC ---
         function startTracking() {
             if (navigator.geolocation) {
-                navigator.geolocation.watchPosition(updateStats, null, {
-                    enableHighAccuracy: true,
-                    maximumAge: 0,
-                    timeout: 5000
+                navigator.geolocation.watchPosition(updatePosition, null, {
+                    enableHighAccuracy: true, maximumAge: 0, timeout: 10000
                 });
             }
         }
 
-        function updateStats(position) {
-            const lat = position.coords.latitude;
-            const lon = position.coords.longitude;
+        function updatePosition(pos) {
+            const { latitude: lat, longitude: lon, speed } = pos.coords;
+            const newPos = [lat, lon];
 
-            const toNana = calculateDistance(lat, lon, nanaBariLoc[0], nanaBariLoc[1]);
-            nanaDistDisplay.innerText = toNana.toFixed(2) + " km";
+            // Add point to blue line
+            pathLine.addLatLng(newPos);
 
-            let stepDistance = 0;
+            const toNana = calculateDist(lat, lon, nanaBari[0], nanaBari[1]);
+            nanaDisplay.innerText = toNana.toFixed(2) + " km";
+
             if (lastLat && lastLon) {
-                stepDistance = calculateDistance(lastLat, lastLon, lat, lon);
-                
-                // Sensitivity: 0.1 feet
-                if (stepDistance > 0.00003) { 
-                    totalDistance += stepDistance;
-                    odometerDisplay.innerText = totalDistance.toFixed(3);
-                    localStorage.setItem('uber_dist', totalDistance);
+                const step = calculateDist(lastLat, lastLon, lat, lon);
+                if (step > 0.003) { // 3 meter sensitivity
+                    totalDistance += step;
+                    distDisplay.innerText = totalDistance.toFixed(3);
+                    localStorage.setItem('v_dist', totalDistance);
+                    saveToDB(lat, lon, speed);
                     updateStatus(true);
                 } else {
                     updateStatus(false);
                 }
             }
 
-            const newPos = [lat, lon];
-            let rawSpeed = position.coords.speed || 0;
-            let displaySpeed = rawSpeed > 0 ? Math.round(rawSpeed * 3.6) : (stepDistance > 0.0005 ? 2 : 0);
-            speedDisplay.innerText = displaySpeed;
+            let sKmH = speed ? Math.round(speed * 3.6) : 0;
+            speedDisplay.innerText = sKmH;
 
             if (!carMarker) {
                 carMarker = L.marker(newPos, { icon: carIcon }).addTo(map);
@@ -160,41 +197,62 @@
             lastLat = lat; lastLon = lon;
         }
 
-        function updateStatus(isMoving) {
-            statusText.innerText = isMoving ? "Moving" : "Stopped";
-            statusDot.style.background = isMoving ? "var(--green)" : "var(--red)";
-        }
-
-        function calculateDistance(lat1, lon1, lat2, lon2) {
-            const R = 6371; 
+        function calculateDist(lat1, lon1, lat2, lon2) {
+            const R = 6371;
             const dLat = (lat2 - lat1) * Math.PI / 180;
             const dLon = (lon2 - lon1) * Math.PI / 180;
-            const a = Math.sin(dLat/2)**2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2)**2;
+            const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
             return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
         }
 
+        function saveToDB(lat, lon, spd) {
+            if (!db) return;
+            const tx = db.transaction('logs', 'readwrite');
+            tx.objectStore('logs').add({ 
+                time: new Date().toLocaleTimeString(), lat, lon, speed: spd 
+            });
+        }
+
+        async function exportHistory() {
+            if (!db) return;
+            const tx = db.transaction('logs', 'readonly');
+            const store = tx.objectStore('logs');
+            const allLogs = await new Promise(res => {
+                store.getAll().onsuccess = (e) => res(e.target.result);
+            });
+            if (allLogs.length === 0) return alert("No history!");
+            let csv = "Time,Lat,Lon,Speed\n";
+            allLogs.forEach(l => csv += `${l.time},${l.lat},${l.lon},${l.speed}\n`);
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = 'trip.csv'; a.click();
+        }
+
+        function updateStatus(moving) {
+            statusText.innerText = moving ? "MOVING" : "IDLE";
+            statusDot.style.background = moving ? "var(--green)" : "var(--red)";
+        }
+
         function clearJourney() {
-            if(confirm("Reset odometer?")) {
-                localStorage.removeItem('uber_dist');
+            if(confirm("Reset Odometer and Path?")) {
+                localStorage.removeItem('v_dist');
                 totalDistance = 0;
-                odometerDisplay.innerText = "0.000";
+                distDisplay.innerText = "0.000";
+                pathLine.setLatLngs([]); // Blue line clear
+                const tx = db.transaction('logs', 'readwrite');
+                tx.objectStore('logs').clear();
             }
         }
 
-        function recenterMap() { 
-            isUserMovingMap = false; 
-            if(carMarker) map.flyTo(carMarker.getLatLng(), 18); 
-        }
-        if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js')
-            .then(reg => console.log('Tracker Offline Ready!'))
-            .catch(err => console.log('Worker Registration Failed!', err));
-    });
-}
+        function recenterMap() { isUserMovingMap = false; if(carMarker) map.flyTo(carMarker.getLatLng(), 18); }
+
         window.onload = startTracking;
-        map.on('movestart', () => { isUserMovingMap = true; });
-    
+        map.on('movestart', () => isUserMovingMap = true);
+
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('./sw.js');
+        }
     </script>
 </body>
 </html>
