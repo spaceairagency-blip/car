@@ -4,16 +4,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="theme-color" content="#276EF1">
-    <title>Path Tracker</title>
+    <title>Path Tracker Pro</title>
     
     <link rel="manifest" href="manifest.json">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
     <style>
-        :root { --uber-blue: #276EF1; --dark: #000; --green: #2ecc71; --red: #e74c3c; --gold: #f1c40f; }
+        :root { --uber-blue: #276EF1; --dark: #090a0f; --green: #2ecc71; --red: #ff3838; --gold: #f1c40f; }
         body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; font-family: 'Segoe UI', sans-serif; background: #000; }
 
+        /* Dashboard Design */
         .dashboard {
             position: absolute; top: 15px; left: 15px; right: 15px;
             background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(10px);
@@ -25,18 +26,19 @@
         .stat-val { font-size: 24px; font-weight: 900; color: var(--gold); }
         .stat-unit { font-size: 10px; color: #bbb; text-transform: uppercase; letter-spacing: 1px; }
 
+        /* Controls */
         .layer-toggle {
             position: absolute; top: 100px; right: 15px;
             background: #fff; padding: 10px; border-radius: 12px;
             z-index: 1000; cursor: pointer; display: flex; align-items: center; gap: 8px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.2); font-weight: bold; font-size: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2); font-weight: bold; font-size: 11px;
         }
 
         .status-card {
             position: absolute; top: 100px; left: 50%; transform: translateX(-50%);
             background: rgba(0,0,0,0.8); padding: 6px 16px; border-radius: 20px;
             z-index: 1000; display: flex; align-items: center; gap: 10px;
-            border: 1px solid rgba(255,255,255,0.2); font-size: 12px; font-weight: bold; color: #fff;
+            border: 1px solid rgba(255,255,255,0.2); font-size: 11px; font-weight: bold; color: #fff;
         }
 
         #map { width: 100%; height: 100vh; z-index: 1; background: #0b0e14; }
@@ -48,9 +50,11 @@
         }
         .clear-btn { bottom: 100px; right: 20px; color: var(--red); }
         .export-btn { bottom: 170px; right: 20px; color: var(--green); }
-        .recenter-btn { bottom: 30px; right: 20px; color: var(--uber-blue); }
+        .recenter-btn { bottom: 30px; right: 20px; color: var(--uber-blue); font-size: 20px; }
 
-        .car-marker-icon { color: var(--uber-blue); filter: drop-shadow(0 0 5px #fff); }
+        /* Marker Icons */
+        .car-marker-icon { color: var(--uber-blue); filter: drop-shadow(0 0 8px #fff); }
+        .nana-flag-icon { color: var(--red); filter: drop-shadow(0 0 10px var(--red)); }
     </style>
 </head>
 <body>
@@ -62,7 +66,7 @@
         </div>
         <div class="stat-item">
             <div id="dist-val" class="stat-val">0.000</div>
-            <div class="stat-unit">km total</div>
+            <div class="stat-unit">Trip km</div>
         </div>
         <div class="stat-item">
             <div id="nana-dist" class="stat-val">--</div>
@@ -75,20 +79,20 @@
     </div>
 
     <div class="status-card">
-        <span id="status-dot" style="height:10px; width:10px; border-radius:50%; background:var(--red);"></span>
-        <span id="status-text">GPS CONNECTING...</span>
+        <span id="status-dot" style="height:8px; width:8px; border-radius:50%; background:var(--red);"></span>
+        <span id="status-text">CONNECTING GPS...</span>
     </div>
 
     <button class="action-btn export-btn" onclick="exportHistory()" title="Export CSV"><i class="fas fa-file-export"></i></button>
     <button class="action-btn clear-btn" onclick="clearJourney()" title="Reset"><i class="fas fa-trash-alt"></i></button>
-    <button class="action-btn recenter-btn" onclick="recenterMap()" title="Recenter"><i class="fas fa-crosshairs"></i></button>
+    <button class="action-btn recenter-btn" onclick="recenterMap()"><i class="fas fa-location-arrow"></i></button>
 
     <div id="map"></div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <script>
-        // --- 1. DB SETUP ---
+        // --- 1. INDEXED DB ---
         let db;
         const dbReq = indexedDB.open('VehicleTrackerDB', 1);
         dbReq.onupgradeneeded = (e) => {
@@ -102,9 +106,9 @@
         // --- 2. CONFIG ---
         const nanaBari = [23.95648, 90.26997];
         let totalDistance = parseFloat(localStorage.getItem('v_dist')) || 0;
-        let lastLat, lastLon, carMarker, isUserMovingMap = false;
+        let lastLat, lastLon, carMarker, pathLine;
+        let isUserMovingMap = false;
         let currentMode = 'lite';
-        let pathLine; // For Blue Tracking Line
 
         const speedDisplay = document.getElementById('speed-num');
         const distDisplay = document.getElementById('dist-val');
@@ -115,22 +119,35 @@
 
         distDisplay.innerText = totalDistance.toFixed(3);
 
-        // --- 3. MAP MODES ---
+        // --- 3. MAP SETUP ---
         const map = L.map('map', { zoomControl: false, attributionControl: false }).setView(nanaBari, 15);
 
         const liteLayer = L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
             maxZoom: 21, subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
-        });
+        }).addTo(map);
 
         const satelliteLayer = L.tileLayer('https://{s}.google.com/vt/lyrs=s,h&x={x}&y={y}&z={z}', {
             maxZoom: 20, subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
         });
 
-        liteLayer.addTo(map);
+        // The Red Flag Marker
+        const flagIcon = L.divIcon({
+            className: 'nana-flag-icon',
+            html: '<i class="fas fa-flag" style="font-size: 32px;"></i>',
+            iconSize: [32, 32], iconAnchor: [5, 32]
+        });
+        L.marker(nanaBari, { icon: flagIcon }).addTo(map).bindPopup("Nana Bari Location");
 
-        // Blue Tracking Line Init
+        // Blue Tracking Path
         pathLine = L.polyline([], { color: '#276EF1', weight: 6, opacity: 0.8 }).addTo(map);
 
+        const carIcon = L.divIcon({
+            className: 'car-marker-icon',
+            html: '<i class="fas fa-location-arrow" style="font-size: 28px; transform: rotate(-45deg);"></i>',
+            iconSize: [28, 28], iconAnchor: [14, 14]
+        });
+
+        // --- 4. FUNCTIONS ---
         function toggleMapMode() {
             if (currentMode === 'lite') {
                 map.removeLayer(liteLayer);
@@ -145,13 +162,6 @@
             }
         }
 
-        const carIcon = L.divIcon({
-            className: 'car-marker-icon',
-            html: '<i class="fas fa-location-arrow" style="font-size: 28px; transform: rotate(-45deg);"></i>',
-            iconSize: [28, 28], iconAnchor: [14, 14]
-        });
-
-        // --- 4. TRACKING LOGIC ---
         function startTracking() {
             if (navigator.geolocation) {
                 navigator.geolocation.watchPosition(updatePosition, null, {
@@ -164,11 +174,8 @@
             const { latitude: lat, longitude: lon, speed } = pos.coords;
             const newPos = [lat, lon];
 
-            // Add point to blue line
             pathLine.addLatLng(newPos);
-
-            const toNana = calculateDist(lat, lon, nanaBari[0], nanaBari[1]);
-            nanaDisplay.innerText = toNana.toFixed(2) + " km";
+            nanaDisplay.innerText = calculateDist(lat, lon, nanaBari[0], nanaBari[1]).toFixed(2) + " km";
 
             if (lastLat && lastLon) {
                 const step = calculateDist(lastLat, lastLon, lat, lon);
@@ -183,8 +190,7 @@
                 }
             }
 
-            let sKmH = speed ? Math.round(speed * 3.6) : 0;
-            speedDisplay.innerText = sKmH;
+            speedDisplay.innerText = speed ? Math.round(speed * 3.6) : 0;
 
             if (!carMarker) {
                 carMarker = L.marker(newPos, { icon: carIcon }).addTo(map);
@@ -208,38 +214,29 @@
         function saveToDB(lat, lon, spd) {
             if (!db) return;
             const tx = db.transaction('logs', 'readwrite');
-            tx.objectStore('logs').add({ 
-                time: new Date().toLocaleTimeString(), lat, lon, speed: spd 
-            });
+            tx.objectStore('logs').add({ time: new Date().toLocaleTimeString(), lat, lon, spd });
         }
 
         async function exportHistory() {
-            if (!db) return;
             const tx = db.transaction('logs', 'readonly');
-            const store = tx.objectStore('logs');
-            const allLogs = await new Promise(res => {
-                store.getAll().onsuccess = (e) => res(e.target.result);
-            });
-            if (allLogs.length === 0) return alert("No history!");
-            let csv = "Time,Lat,Lon,Speed\n";
-            allLogs.forEach(l => csv += `${l.time},${l.lat},${l.lon},${l.speed}\n`);
+            const logs = await new Promise(r => tx.objectStore('logs').getAll().onsuccess = e => r(e.target.result));
+            if (!logs.length) return alert("No history!");
+            let csv = "Time,Lat,Lon,Speed\n" + logs.map(l => `${l.time},${l.lat},${l.lon},${l.spd}`).join("\n");
             const blob = new Blob([csv], { type: 'text/csv' });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url; a.download = 'trip.csv'; a.click();
+            const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'trip.csv'; a.click();
         }
 
         function updateStatus(moving) {
             statusText.innerText = moving ? "MOVING" : "IDLE";
             statusDot.style.background = moving ? "var(--green)" : "var(--red)";
+            statusDot.style.boxShadow = moving ? "0 0 10px var(--green)" : "none";
         }
 
         function clearJourney() {
-            if(confirm("Reset Odometer and Path?")) {
+            if(confirm("Reset everything?")) {
                 localStorage.removeItem('v_dist');
-                totalDistance = 0;
-                distDisplay.innerText = "0.000";
-                pathLine.setLatLngs([]); // Blue line clear
+                totalDistance = 0; distDisplay.innerText = "0.000";
+                pathLine.setLatLngs([]);
                 const tx = db.transaction('logs', 'readwrite');
                 tx.objectStore('logs').clear();
             }
@@ -249,10 +246,6 @@
 
         window.onload = startTracking;
         map.on('movestart', () => isUserMovingMap = true);
-
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('./sw.js');
-        }
     </script>
 </body>
 </html>
