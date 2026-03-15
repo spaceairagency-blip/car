@@ -1,15 +1,18 @@
 {
-  "name": "Eid Mubarak 2026",
-  "short_name": "EidGift",
-  "start_url": "./",
+  "name": "Super Sensitive Tracker",
+  "short_name": "Tracker",
+  "description": "Real-time vehicle tracking with offline support",
+  "start_url": "./index.html",
   "display": "standalone",
-  "background_color": "#090a0f",
-  "theme_color": "#f1c40f",
+  "background_color": "#000000",
+  "theme_color": "#276EF1",
+  "orientation": "portrait",
   "icons": [
     {
-      "src": "https://cdn-icons-png.flaticon.com/512/2219/2219808.png",
+      "src": "https://cdn-icons-png.flaticon.com/512/811/811191.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ]
 }
