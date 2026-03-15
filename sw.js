@@ -1,13 +1,14 @@
-const CACHE_NAME = 'eid-mubarak-v1';
+const CACHE_NAME = 'tracker-v1';
 const ASSETS = [
-    './',          // Apnar main HTML file
-    'index.html',  // File name jodi index.html hoy
-    'Eid Takbeer - Allahu Akbar Kabira (mp3cut.net).mp3',
-    'https://fonts.googleapis.com/css2?family=Bungee&family=Poppins:wght@300;400;900&display=swap',
-    'https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js'
+    './',
+    'index.html',
+    'manifest.json', // Apnar main file name jodi alada hoy tobe sheta likhun
+    'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css',
+    'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
+    'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
 ];
 
-// Install Event: File gulo cache-e save kora
+// Install Event
 self.addEventListener('install', (event) => {
     event.waitUntil(
         caches.open(CACHE_NAME).then((cache) => {
@@ -16,11 +17,19 @@ self.addEventListener('install', (event) => {
     );
 });
 
-// Fetch Event: Net na thakle cache theke file deya
+// Fetch Event
 self.addEventListener('fetch', (event) => {
     event.respondWith(
         caches.match(event.request).then((response) => {
-            return response || fetch(event.request);
+            // Jodi net thake tobe map tile gulo cache-e save korbe (Stale-while-revalidate)
+            return response || fetch(event.request).then(fetchRes => {
+                return caches.open(CACHE_NAME).then(cache => {
+                    if (event.request.url.includes('google.com/vt') || event.request.url.includes('unpkg')) {
+                        cache.put(event.request.url, fetchRes.clone());
+                    }
+                    return fetchRes;
+                });
+            });
         })
     );
 });
