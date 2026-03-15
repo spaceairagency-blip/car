@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Super Sensitive Tracker</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#276EF1">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
@@ -18,8 +20,8 @@
             box-shadow: 0 4px 15px rgba(0,0,0,0.2);
         }
         .stat-item { text-align: center; flex: 1; }
-        .stat-val { font-size: 24px; font-weight: bold; color: var(--dark); }
-        .stat-unit { font-size: 10px; color: #666; font-weight: bold; }
+        .stat-val { font-size: 22px; font-weight: bold; color: var(--dark); }
+        .stat-unit { font-size: 10px; color: #666; font-weight: bold; text-transform: uppercase; }
 
         .status-card {
             position: absolute; top: 85px; left: 50%; transform: translateX(-50%);
@@ -27,20 +29,25 @@
             z-index: 1000; display: flex; align-items: center; gap: 8px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.15); font-size: 12px; font-weight: bold;
         }
-        
+
         #map { width: 100%; height: 100vh; z-index: 1; }
-        .car-marker-icon { color: var(--dark); filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4)); }
         
+        .car-marker-icon { 
+            color: var(--dark); 
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4));
+        }
+
         .clear-btn {
             position: absolute; bottom: 30px; left: 20px;
             background: #fff; border: none; padding: 12px; border-radius: 50%;
             box-shadow: 0 4px 12px rgba(0,0,0,0.2); z-index: 1000; color: var(--red);
+            width: 50px; height: 50px; cursor: pointer;
         }
         .recenter-btn {
             position: absolute; bottom: 30px; right: 20px;
             width: 50px; height: 50px; background: #fff; border-radius: 50%;
             display: flex; align-items: center; justify-content: center;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.2); z-index: 1000;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2); z-index: 1000; cursor: pointer;
         }
     </style>
 </head>
@@ -54,6 +61,10 @@
         <div class="stat-item">
             <div id="dist-val" class="stat-val">0.000</div>
             <div class="stat-unit">km total</div>
+        </div>
+        <div class="stat-item">
+            <div id="nana-dist" class="stat-val">--</div>
+            <div class="stat-unit">To Nana</div>
         </div>
     </div>
 
@@ -71,34 +82,42 @@
     <script>
         const speedDisplay = document.getElementById('speed-num');
         const odometerDisplay = document.getElementById('dist-val');
+        const nanaDistDisplay = document.getElementById('nana-dist');
         const statusText = document.getElementById('status-text');
         const statusDot = document.getElementById('status-dot');
+
+        const nanaBariLoc = [23.95648, 90.26997]; 
         
         let totalDistance = parseFloat(localStorage.getItem('uber_dist')) || 0;
-        let pathPoints = JSON.parse(localStorage.getItem('uber_path')) || [];
         let lastLat, lastLon, carMarker, isUserMovingMap = false;
 
-        const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([23.8103, 90.4125], 19);
+        const map = L.map('map', { zoomControl: false, attributionControl: false }).setView(nanaBariLoc, 15);
 
-        L.tileLayer('http://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+        L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
             maxZoom: 21, subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
         }).addTo(map);
 
-        const routeLine = L.polyline(pathPoints, { color: '#276EF1', weight: 5, opacity: 0.6 }).addTo(map);
+        const flagIcon = L.divIcon({
+            className: 'nana-flag',
+            html: '<i class="fas fa-flag" style="font-size: 30px; color: #dc3545; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));"></i>',
+            iconSize: [30, 30], iconAnchor: [5, 30]
+        });
+        L.marker(nanaBariLoc, { icon: flagIcon }).addTo(map).bindPopup("Nana Bari");
+
         const carIcon = L.divIcon({
             className: 'car-marker-icon',
             html: '<i class="fas fa-car" style="font-size: 28px;"></i>',
             iconSize: [28, 28], iconAnchor: [14, 14]
         });
 
-        odometerDisplay.innerText = totalDistance.toFixed(4);
+        odometerDisplay.innerText = totalDistance.toFixed(3);
 
         function startTracking() {
             if (navigator.geolocation) {
                 navigator.geolocation.watchPosition(updateStats, null, {
                     enableHighAccuracy: true,
                     maximumAge: 0,
-                    timeout: 2000
+                    timeout: 5000
                 });
             }
         }
@@ -107,28 +126,28 @@
             const lat = position.coords.latitude;
             const lon = position.coords.longitude;
 
+            const toNana = calculateDistance(lat, lon, nanaBariLoc[0], nanaBariLoc[1]);
+            nanaDistDisplay.innerText = toNana.toFixed(2) + " km";
+
             let stepDistance = 0;
             if (lastLat && lastLon) {
                 stepDistance = calculateDistance(lastLat, lastLon, lat, lon);
                 
-                // সেন্সিটিভিটি ০.১ ফুট (প্রায় ০.০০০০৩ কিমি)
-                // এখানে ৩ সেন্টিমিটার বা ০.১ ফুটের বেশি নড়লে মুভিং ধরবে
-                if (stepDistance < 0.00003) {
-                    updateStatus(0);
-                    return; 
+                // Sensitivity: 0.1 feet
+                if (stepDistance > 0.00003) { 
+                    totalDistance += stepDistance;
+                    odometerDisplay.innerText = totalDistance.toFixed(3);
+                    localStorage.setItem('uber_dist', totalDistance);
+                    updateStatus(true);
+                } else {
+                    updateStatus(false);
                 }
-
-                totalDistance += stepDistance;
-                odometerDisplay.innerText = totalDistance.toFixed(4);
-                localStorage.setItem('uber_dist', totalDistance);
             }
 
             const newPos = [lat, lon];
-            let speed = position.coords.speed || 0;
-            let currentSpeed = speed > 0 ? Math.round(speed * 3.6) : (stepDistance > 0 ? 1 : 0);
-            
-            speedDisplay.innerText = currentSpeed;
-            updateStatus(currentSpeed);
+            let rawSpeed = position.coords.speed || 0;
+            let displaySpeed = rawSpeed > 0 ? Math.round(rawSpeed * 3.6) : (stepDistance > 0.0005 ? 2 : 0);
+            speedDisplay.innerText = displaySpeed;
 
             if (!carMarker) {
                 carMarker = L.marker(newPos, { icon: carIcon }).addTo(map);
@@ -137,26 +156,17 @@
                 carMarker.setLatLng(newPos);
             }
 
-            pathPoints.push(newPos);
-            routeLine.setLatLngs(pathPoints);
-            localStorage.setItem('uber_path', JSON.stringify(pathPoints));
-
             if (!isUserMovingMap) map.panTo(newPos);
             lastLat = lat; lastLon = lon;
         }
 
-        function updateStatus(speed) {
-            if (speed > 0) {
-                statusText.innerText = "Moving";
-                statusDot.style.background = "var(--green)";
-            } else {
-                statusText.innerText = "Stopped";
-                statusDot.style.background = "var(--red)";
-            }
+        function updateStatus(isMoving) {
+            statusText.innerText = isMoving ? "Moving" : "Stopped";
+            statusDot.style.background = isMoving ? "var(--green)" : "var(--red)";
         }
 
         function calculateDistance(lat1, lon1, lat2, lon2) {
-            const R = 6371; // KM
+            const R = 6371; 
             const dLat = (lat2 - lat1) * Math.PI / 180;
             const dLon = (lon2 - lon1) * Math.PI / 180;
             const a = Math.sin(dLat/2)**2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2)**2;
@@ -164,13 +174,27 @@
         }
 
         function clearJourney() {
-            if(confirm("Clear journey data?")) { localStorage.clear(); location.reload(); }
+            if(confirm("Reset odometer?")) {
+                localStorage.removeItem('uber_dist');
+                totalDistance = 0;
+                odometerDisplay.innerText = "0.000";
+            }
         }
 
-        function recenterMap() { isUserMovingMap = false; if(carMarker) map.flyTo(carMarker.getLatLng(), 19); }
-
+        function recenterMap() { 
+            isUserMovingMap = false; 
+            if(carMarker) map.flyTo(carMarker.getLatLng(), 18); 
+        }
+        if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+            .then(reg => console.log('Tracker Offline Ready!'))
+            .catch(err => console.log('Worker Registration Failed!', err));
+    });
+}
         window.onload = startTracking;
         map.on('movestart', () => { isUserMovingMap = true; });
+    
     </script>
 </body>
 </html>
